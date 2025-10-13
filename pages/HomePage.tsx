@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import { Quote } from '../types';
 import CategoryTabs from '../components/CategoryTabs';
-import QuoteCard from '../components/QuoteCard';
 import DashboardButton from '../components/DashboardButton';
 import useLocalStorage from '../hooks/useLocalStorage';
 import ThemeToggle from '../components/ThemeToggle';
+
+// Lazy load the QuoteCard component for better initial performance
+const QuoteCard = lazy(() => import('../components/QuoteCard'));
 
 interface HomePageProps {
   theme: 'light' | 'dark';
@@ -121,9 +123,8 @@ const HomePage: React.FC<HomePageProps> = ({ theme, toggleTheme }) => {
     const element = document.getElementById(`quote-${quoteId}`);
     if (!element || !(window as any).html2canvas) return;
 
-    const watermarkId = `watermark-for-${quoteId}`;
+    // Create and append the watermark
     const watermark = document.createElement('div');
-    watermark.id = watermarkId;
     watermark.innerText = 'Laxman Nepal Quotes';
     watermark.style.position = 'absolute';
     watermark.style.bottom = '20px';
@@ -143,10 +144,8 @@ const HomePage: React.FC<HomePageProps> = ({ theme, toggleTheme }) => {
       link.href = canvas.toDataURL();
       link.click();
     }).finally(() => {
-      const addedWatermark = document.getElementById(watermarkId);
-      if (addedWatermark) {
-        element.removeChild(addedWatermark);
-      }
+      // Remove the watermark after screenshot is taken
+      element.removeChild(watermark);
     });
   }, [theme]);
   
@@ -176,27 +175,31 @@ const HomePage: React.FC<HomePageProps> = ({ theme, toggleTheme }) => {
       )
     }
     
+    const loader = (
+        <div className="h-screen w-screen snap-start flex items-center justify-center">
+            <svg className="animate-spin h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+        </div>
+    );
+    
     return (
       <main id="quotesContainer" onScroll={handleScroll} className="h-full w-full snap-y snap-mandatory overflow-y-scroll scrollbar-hide">
-        {visibleQuotes.map((quote) => (
-          <QuoteCard
-            key={quote.id}
-            quote={quote}
-            isLiked={likedQuotes.includes(quote.id)}
-            isSaved={savedQuotes.some(q => q.id === quote.id)}
-            onLike={handleLike}
-            onSave={handleSave}
-            onShare={handleShare}
-          />
-        ))}
-        {isLoadingMore && (
-            <div className="h-screen w-screen snap-start flex items-center justify-center">
-                <svg className="animate-spin h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-            </div>
-        )}
+        <Suspense fallback={loader}>
+          {visibleQuotes.map((quote) => (
+            <QuoteCard
+              key={quote.id}
+              quote={quote}
+              isLiked={likedQuotes.includes(quote.id)}
+              isSaved={savedQuotes.some(q => q.id === quote.id)}
+              onLike={handleLike}
+              onSave={handleSave}
+              onShare={handleShare}
+            />
+          ))}
+        </Suspense>
+        {isLoadingMore && loader}
       </main>
     )
   }
