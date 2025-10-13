@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense, useRef } from 'react';
 import { Quote } from '../types';
 import CategoryTabs from '../components/CategoryTabs';
 import DashboardButton from '../components/DashboardButton';
 import useLocalStorage from '../hooks/useLocalStorage';
 import ThemeToggle from '../components/ThemeToggle';
+import AutoScrollToggle from '../components/AutoScrollToggle';
 
 // Lazy load the QuoteCard component for better initial performance
 const QuoteCard = lazy(() => import('../components/QuoteCard'));
@@ -33,9 +34,12 @@ const HomePage: React.FC<HomePageProps> = ({ theme, toggleTheme }) => {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [visibleQuotes, setVisibleQuotes] = useState<Quote[]>([]);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isAutoScrolling, setIsAutoScrolling] = useState(false);
 
   const [likedQuotes, setLikedQuotes] = useLocalStorage<number[]>('likedQuotes', []);
   const [savedQuotes, setSavedQuotes] = useLocalStorage<Quote[]>('savedQuotes', []);
+  
+  const containerRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const fetchQuotes = async () => {
@@ -106,6 +110,39 @@ const HomePage: React.FC<HomePageProps> = ({ theme, toggleTheme }) => {
         loadMoreQuotes();
     }
   };
+  
+  const toggleAutoScroll = () => {
+    setIsAutoScrolling(prev => !prev);
+  };
+
+  const stopAutoScroll = () => {
+    if (isAutoScrolling) {
+      setIsAutoScrolling(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isAutoScrolling) {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      const { scrollTop, scrollHeight, clientHeight } = container;
+
+      const isAtBottom = scrollHeight - scrollTop - clientHeight < 1;
+
+      if (isAtBottom && visibleQuotes.length >= quotes.length) {
+        container.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        container.scrollBy({ top: clientHeight, behavior: 'smooth' });
+      }
+    }, 4000);
+
+    return () => clearInterval(intervalId);
+  }, [isAutoScrolling, quotes.length, visibleQuotes.length]);
 
   const handleLike = useCallback((quoteId: number) => {
     setLikedQuotes(prev =>
@@ -123,7 +160,6 @@ const HomePage: React.FC<HomePageProps> = ({ theme, toggleTheme }) => {
     const element = document.getElementById(`quote-${quoteId}`);
     if (!element || !(window as any).html2canvas) return;
 
-    // Create and append the watermark
     const watermark = document.createElement('div');
     watermark.innerText = 'Laxman Nepal Quotes';
     watermark.style.position = 'absolute';
@@ -144,7 +180,6 @@ const HomePage: React.FC<HomePageProps> = ({ theme, toggleTheme }) => {
       link.href = canvas.toDataURL();
       link.click();
     }).finally(() => {
-      // Remove the watermark after screenshot is taken
       element.removeChild(watermark);
     });
   }, [theme]);
@@ -185,7 +220,7 @@ const HomePage: React.FC<HomePageProps> = ({ theme, toggleTheme }) => {
     );
     
     return (
-      <main id="quotesContainer" onScroll={handleScroll} className="h-full w-full snap-y snap-mandatory overflow-y-scroll scrollbar-hide">
+      <main ref={containerRef} id="quotesContainer" onScroll={handleScroll} onWheel={stopAutoScroll} onTouchStart={stopAutoScroll} className="h-full w-full snap-y snap-mandatory overflow-y-scroll scrollbar-hide">
         <Suspense fallback={loader}>
           {visibleQuotes.map((quote) => (
             <QuoteCard
@@ -209,7 +244,10 @@ const HomePage: React.FC<HomePageProps> = ({ theme, toggleTheme }) => {
       <header className="fixed top-0 left-0 right-0 z-20 bg-black/20 backdrop-blur-md">
         <div className="container mx-auto px-4 flex justify-between items-center">
           <h1 className="text-xl font-bold text-white py-4">QuoteTok</h1>
-          <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
+          <div className="flex items-center space-x-2">
+            <AutoScrollToggle isAutoScrolling={isAutoScrolling} toggleAutoScroll={toggleAutoScroll} />
+            <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
+          </div>
         </div>
         { !isLoading && !error && <CategoryTabs categories={categories} activeCategory={activeCategory} setActiveCategory={setActiveCategory} /> }
       </header>
