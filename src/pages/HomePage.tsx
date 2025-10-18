@@ -6,6 +6,7 @@ import DashboardButton from '../components/DashboardButton';
 import useLocalStorage from '../hooks/useLocalStorage';
 import ThemeToggle from '../components/ThemeToggle';
 import AutoScrollToggle from '../components/AutoScrollToggle';
+import html2canvas from 'html2canvas';
 
 const QuoteCard = lazy(() => import('../components/QuoteCard'));
 
@@ -64,6 +65,19 @@ const HomePage: React.FC<HomePageProps> = ({ theme, toggleTheme }) => {
         setIsLoadingMore(false);
     }, 500);
   }, [isLoadingMore, visibleQuotes.length, quotes]);
+
+  const handleSwipeNext = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    // If we're near the bottom (less than a screen away), load more quotes.
+    if (scrollHeight - scrollTop - clientHeight < clientHeight) {
+        loadMoreQuotes();
+    }
+
+    container.scrollBy({ top: clientHeight, behavior: 'smooth' });
+  }, [loadMoreQuotes]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -137,7 +151,7 @@ const HomePage: React.FC<HomePageProps> = ({ theme, toggleTheme }) => {
   
   const handleShare = useCallback((quoteId: number) => {
     const element = document.getElementById(`quote-${quoteId}`);
-    if (!element || !(window as any).html2canvas) return;
+    if (!element) return;
 
     const watermark = document.createElement('div');
     watermark.innerText = 'Laxman Nepal Quotes';
@@ -150,7 +164,7 @@ const HomePage: React.FC<HomePageProps> = ({ theme, toggleTheme }) => {
     watermark.style.zIndex = '10';
     element.appendChild(watermark);
 
-    (window as any).html2canvas(element, { 
+    html2canvas(element, { 
       backgroundColor: theme === 'dark' ? '#111827' : '#f3f4f6',
       useCORS: true 
     }).then((canvas: HTMLCanvasElement) => {
@@ -193,6 +207,7 @@ const HomePage: React.FC<HomePageProps> = ({ theme, toggleTheme }) => {
               onLike={handleLike}
               onSave={handleSave}
               onShare={handleShare}
+              onSwipeNext={handleSwipeNext}
             />
           ))}
         </Suspense>
